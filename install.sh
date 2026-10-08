@@ -47,6 +47,12 @@ unzip -o snell-server.zip
 rm -f snell-server.zip
 chmod +x snell-server
 
+# ---------- 确保 Dockerfile 存在 ----------
+if [[ ! -f Dockerfile ]]; then
+  echo ">>> 本地没有 Dockerfile，从 GitHub 下载..."
+  curl -fsSL https://raw.githubusercontent.com/linyu-yuan/snell/main/Dockerfile -o Dockerfile
+fi
+
 # ---------- 构建镜像 ----------
 echo ">>> 构建镜像 ${IMAGE_NAME} ..."
 docker build -t "${IMAGE_NAME}" .
