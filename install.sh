@@ -17,7 +17,6 @@ for cmd in wget unzip docker curl; do
   fi
 done
 
-# ---------- 检查 Docker 和 Compose ----------
 if ! docker version >/dev/null 2>&1; then
   echo ">>> Docker 未运行或不可用，请检查。"
   exit 1
@@ -39,7 +38,7 @@ else
   echo ">>> 使用版本: $SNELL_VER"
 fi
 
-# ---------- 强制重新下载官方二进制 ----------
+# ---------- 下载二进制 ----------
 rm -f snell-server snell-server.zip
 echo ">>> 下载 Snell ${SNELL_VER} (${SNELL_ARCH}) ..."
 wget -q "https://dl.nssurge.com/snell/snell-server-${SNELL_VER}-linux-${SNELL_ARCH}.zip" -O snell-server.zip
@@ -110,15 +109,85 @@ else
   echo ">>> docker-compose.yml 已存在，不覆盖"
 fi
 
-# ---------- 完成提示 ----------
+# ---------- 从 docker-compose.yml 提取端口 ----------
+PORTS=$(grep -A1 '"-p"' docker-compose.yml | grep -oE '"[0-9]+"' | tr -d '"' | sort -u)
+
+if [[ -z "$PORTS" ]]; then
+  echo ">>> 未能从 docker-compose.yml 中提取端口，请检查文件格式。"
+  exit 1
+fi
+echo ">>> 检测到端口: $(echo $PORTS | tr '\n' ' ')"
+
+# ---------- 确保 iptables-persistent 已安装 ----------
+if ! command -v netfilter-persistent >/dev/null 2>&1; then
+  echo ">>> 安装 iptables-persistent ..."
+  export DEBIAN_FRONTEND=noninteractive
+  echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections 2>/dev/null || true
+  echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections 2>/dev/null || true
+  apt-get update -qq
+  apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
+fi
+
+# ---------- 停止旧容器后检查端口占用 ----------
+echo ">>> 停止旧容器..."
+docker compose down 2>/dev/null || true
+
+for PORT in $PORTS; do
+  if ss -tlnup 2>/dev/null | grep -qE ":${PORT}[[:space:]]"; then
+    echo ">>> 错误: 端口 ${PORT} 已被其他进程占用"
+    ss -tlnup | grep -E ":${PORT}[[:space:]]"
+    exit 1
+  fi
+done
+
+# ---------- 清理旧的 snell 防火墙规则 ----------
+echo ">>> 清理旧的 snell 防火墙规则..."
+iptables -S INPUT 2>/dev/null | grep 'snell' | sed 's/^-A/iptables -D/' | bash 2>/dev/null || true
+ip6tables -S INPUT 2>/dev/null | grep 'snell' | sed 's/^-A/ip6tables -D/' | bash 2>/dev/null || true
+
+# ---------- 添加新的防火墙规则 ----------
+echo ">>> 添加新的防火墙规则..."
+for PORT in $PORTS; do
+  iptables -A INPUT -p tcp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
+  iptables -A INPUT -p udp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
+  ip6tables -A INPUT -p tcp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
+  ip6tables -A INPUT -p udp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
+done
+
+# ---------- 持久化防火墙规则 ----------
+echo ">>> 保存防火墙规则..."
+netfilter-persistent save 2>/dev/null || true
+systemctl enable netfilter-persistent 2>/dev/null || true
+
+# ---------- 启动容器 ----------
+echo ">>> 启动 Snell 容器..."
+docker compose up -d
+
+# ---------- 验证监听（TCP + UDP） ----------
+echo ""
+echo ">>> 监听状态 (TCP + UDP):"
+for PORT in $PORTS; do
+  if ss -tlnup 2>/dev/null | grep -qE ":${PORT}[[:space:]]"; then
+    ss -tlnup | grep -E ":${PORT}[[:space:]]"
+  else
+    echo "  (端口 ${PORT} 未监听)"
+  fi
+done
+
 echo ""
 echo "=============================================="
-echo "准备工作已完成！"
+echo "部署完成！"
 echo "=============================================="
-echo "请执行以下步骤："
-echo "1. 编辑 docker-compose.yml，把两处 PSK 从 123456789012 改为你的真实密码"
-echo "2. 执行: bash apply.sh"
-echo "3. 在 DMIT 网页控制台的安全组中放行端口 ${DEFAULT_PORT_V4} 和 ${DEFAULT_PORT_V6} 的 TCP+UDP"
+echo "Surge 配置参考（手动填入服务器 IP 和密码）："
 echo ""
-echo "注意：当前密码仍是占位符 123456789012，请务必修改后再启动！"
+N=1
+for PORT in $PORTS; do
+  echo "Snell-${N} = snell, 你的服务器IP, ${PORT}, psk=你的密码, version=6, reuse=true, mode=unshaped"
+  N=$((N+1))
+done
+echo ""
+echo "注意：当前密码仍然是占位符 123456789012，请务必修改！"
+echo "修改方法："
+echo "  1. nano /root/docker-compose.yml （把 123456789012 改成你自己的密码）"
+echo "  2. docker compose up -d （重启生效）"
 echo "=============================================="
