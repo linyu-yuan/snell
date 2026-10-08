@@ -2,6 +2,5 @@
 .gitignore
 README.md
 docker-compose.yml
-apply.sh
 install.sh
 snell-server.zip
