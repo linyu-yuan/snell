@@ -4,8 +4,7 @@ set -euo pipefail
 IMAGE_NAME="snell-v6:official"
 FALLBACK_VER="v6.0.0rc2"
 SNELL_ARCH="amd64"
-DEFAULT_PORT_V4=6666
-DEFAULT_PORT_V6=8888
+DEFAULT_PORT=6666
 SNELL_PSK="${SNELL_PSK:-123456789012}"
 
 WORKDIR="$(pwd)"
@@ -55,48 +54,24 @@ docker build -t "${IMAGE_NAME}" .
 
 echo ">>> 生成 snell-server.conf 配置文件..."
 
-mkdir -p "$WORKDIR/snell-config-v4"
-cat > "$WORKDIR/snell-config-v4/snell-server.conf" <<EOF
+mkdir -p "$WORKDIR/snell-config"
+cat > "$WORKDIR/snell-config/snell-server.conf" <<EOF
 [snell-server]
-listen = 0.0.0.0:${DEFAULT_PORT_V4}
+listen = 0.0.0.0:${DEFAULT_PORT},[::]:${DEFAULT_PORT}
 psk = ${SNELL_PSK}
 mode = unshaped
-dns-ip-preference = ipv4-only
-EOF
-
-mkdir -p "$WORKDIR/snell-config-v6"
-cat > "$WORKDIR/snell-config-v6/snell-server.conf" <<EOF
-[snell-server]
-listen = [::]:${DEFAULT_PORT_V6}
-psk = ${SNELL_PSK}
-mode = unshaped
-dns-ip-preference = ipv6-only
 EOF
 
 if [[ ! -f docker-compose.yml ]]; then
   cat > docker-compose.yml <<YAML
 services:
-  snell-v4-exit:
+  snell:
     image: snell-v6:official
-    container_name: snell-v4-exit
+    container_name: snell
     restart: always
     network_mode: host
     volumes:
-      - ./snell-config-v4:/etc/snell
-    command: ["-c", "/etc/snell/snell-server.conf"]
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-
-  snell-v6-exit:
-    image: snell-v6:official
-    container_name: snell-v6-exit
-    restart: always
-    network_mode: host
-    volumes:
-      - ./snell-config-v6:/etc/snell
+      - ./snell-config:/etc/snell
     command: ["-c", "/etc/snell/snell-server.conf"]
     logging:
       driver: json-file
@@ -126,7 +101,7 @@ iptables -S INPUT 2>/dev/null | grep 'snell' | sed 's/^-A/iptables -D/' | bash 2
 ip6tables -S INPUT 2>/dev/null | grep 'snell' | sed 's/^-A/ip6tables -D/' | bash 2>/dev/null || true
 
 echo ">>> 添加新的防火墙规则..."
-for PORT in ${DEFAULT_PORT_V4} ${DEFAULT_PORT_V6}; do
+for PORT in ${DEFAULT_PORT}; do
   iptables -A INPUT -p tcp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
   iptables -A INPUT -p udp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
   ip6tables -A INPUT -p tcp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
@@ -144,7 +119,7 @@ echo "=============================================="
 echo "部署完成！"
 echo "=============================================="
 echo "当前使用的密码: ${SNELL_PSK}"
-echo "Surge 配置参考："
-echo "Snell-v4 = snell, 你的服务器IP, ${DEFAULT_PORT_V4}, psk=${SNELL_PSK}, version=6, reuse=true, mode=unshaped"
-echo "Snell-v6 = snell, 你的服务器IP, ${DEFAULT_PORT_V6}, psk=${SNELL_PSK}, version=6, reuse=true, mode=unshaped"
+echo "Surge 配置参考（两个节点都指向 6666 端口）："
+echo "Snell-v4-Entry = snell, 你的服务器IPv4地址, 6666, psk=${SNELL_PSK}, version=6, reuse=true, mode=unshaped"
+echo "Snell-v6-Entry = snell, 你的服务器IPv6地址, 6666, psk=${SNELL_PSK}, version=6, reuse=true, mode=unshaped"
 echo "=============================================="
