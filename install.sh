@@ -6,7 +6,7 @@ FALLBACK_VER="v6.0.0rc2"
 SNELL_ARCH="amd64"
 DEFAULT_PORT_V4=66666
 DEFAULT_PORT_V6=88888
-WORKDIR="$(cd "$(dirname "$0")" && pwd)"
+WORKDIR="$(pwd)"
 cd "$WORKDIR"
 
 # ---------- 检查依赖 ----------
