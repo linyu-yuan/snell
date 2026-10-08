@@ -4,41 +4,25 @@ services:
     container_name: snell-v4-exit
     restart: always
     network_mode: host
+    volumes:
+      - ./snell-config-v4:/etc/snell
+    command: ["-c", "/etc/snell/snell-server.conf"]
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
-    command:
-      - "-p"
-      - "66666"
-      - "-psk"
-      - "123456789012"
-      - "-mode"
-      - "unshaped"
-      - "-listen"
-      - "0.0.0.0,[::]"
-      - "-dns-ip-preference"
-      - "ipv4-only"
 
   snell-v6-exit:
     image: snell-v6:official
     container_name: snell-v6-exit
     restart: always
     network_mode: host
+    volumes:
+      - ./snell-config-v6:/etc/snell
+    command: ["-c", "/etc/snell/snell-server.conf"]
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
-    command:
-      - "-p"
-      - "88888"
-      - "-psk"
-      - "123456789012"
-      - "-mode"
-      - "unshaped"
-      - "-listen"
-      - "0.0.0.0,[::]"
-      - "-dns-ip-preference"
-      - "ipv6-only"
