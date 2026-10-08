@@ -1,25 +1,11 @@
 services:
-  snell-v4-exit:
+  snell:
     image: snell-v6:official
-    container_name: snell-v4-exit
+    container_name: snell
     restart: always
     network_mode: host
     volumes:
-      - ./snell-config-v4:/etc/snell
-    command: ["-c", "/etc/snell/snell-server.conf"]
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-
-  snell-v6-exit:
-    image: snell-v6:official
-    container_name: snell-v6-exit
-    restart: always
-    network_mode: host
-    volumes:
-      - ./snell-config-v6:/etc/snell
+      - ./snell-config:/etc/snell
     command: ["-c", "/etc/snell/snell-server.conf"]
     logging:
       driver: json-file
