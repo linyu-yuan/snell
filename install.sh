@@ -6,6 +6,9 @@ FALLBACK_VER="v6.0.0rc2"
 SNELL_ARCH="amd64"
 DEFAULT_PORT_V4=66666
 DEFAULT_PORT_V6=88888
+# 密码从环境变量获取，没传时用占位符 123456789012
+SNELL_PSK="${SNELL_PSK:-123456789012}"
+
 WORKDIR="$(pwd)"
 cd "$WORKDIR"
 
@@ -58,6 +61,7 @@ docker build -t "${IMAGE_NAME}" .
 
 # ---------- 生成 docker-compose.yml（不覆盖已有） ----------
 if [[ ! -f docker-compose.yml ]]; then
+  # 注意：这里用双引号 YAML 而不是单引号，才能让变量生效
   cat > docker-compose.yml <<YAML
 services:
   snell-v4-exit:
@@ -74,7 +78,7 @@ services:
       - "-p"
       - "${DEFAULT_PORT_V4}"
       - "-psk"
-      - "123456789012"
+      - "${SNELL_PSK}"
       - "-mode"
       - "unshaped"
       - "-listen"
@@ -96,7 +100,7 @@ services:
       - "-p"
       - "${DEFAULT_PORT_V6}"
       - "-psk"
-      - "123456789012"
+      - "${SNELL_PSK}"
       - "-mode"
       - "unshaped"
       - "-listen"
@@ -178,16 +182,16 @@ echo ""
 echo "=============================================="
 echo "部署完成！"
 echo "=============================================="
+echo "当前使用的密码: ${SNELL_PSK}"
+echo ""
 echo "Surge 配置参考（手动填入服务器 IP 和密码）："
 echo ""
 N=1
 for PORT in $PORTS; do
-  echo "Snell-${N} = snell, 你的服务器IP, ${PORT}, psk=你的密码, version=6, reuse=true, mode=unshaped"
+  echo "Snell-${N} = snell, 你的服务器IP, ${PORT}, psk=${SNELL_PSK}, version=6, reuse=true, mode=unshaped"
   N=$((N+1))
 done
 echo ""
-echo "注意：当前密码仍然是占位符 123456789012，请务必修改！"
-echo "修改方法："
-echo "  1. nano /root/docker-compose.yml （把 123456789012 改成你自己的密码）"
-echo "  2. docker compose up -d （重启生效）"
+echo "请确保 Surge [General] 中设置 ipv6 = true"
+echo "并确认 DMIT 网页安全组已放行以上端口的 TCP+UDP"
 echo "=============================================="
