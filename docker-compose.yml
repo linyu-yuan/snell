@@ -1,0 +1,44 @@
+services:
+  snell-v4-exit:
+    image: snell-v6:official
+    container_name: snell-v4-exit
+    restart: always
+    network_mode: host
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    command:
+      - "-p"
+      - "66666"
+      - "-psk"
+      - "123456789012"
+      - "-mode"
+      - "unshaped"
+      - "-listen"
+      - "0.0.0.0,[::]"
+      - "-dns-ip-preference"
+      - "ipv4-only"
+
+  snell-v6-exit:
+    image: snell-v6:official
+    container_name: snell-v6-exit
+    restart: always
+    network_mode: host
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    command:
+      - "-p"
+      - "88888"
+      - "-psk"
+      - "123456789012"
+      - "-mode"
+      - "unshaped"
+      - "-listen"
+      - "0.0.0.0,[::]"
+      - "-dns-ip-preference"
+      - "ipv6-only"
