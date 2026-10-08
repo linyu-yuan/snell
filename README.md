@@ -1,6 +1,6 @@
 # Snell v6 Docker 双栈双出口部署
 
-本项目基于 **Surge 官方 Snell v6 二进制文件** 自建 Docker 镜像，无需任何第三方镜像，通过运行两个独立实例，分别提供强制 IPv4 出口和强制 IPv6 出口的代理服务。
+本项目基于 Surge 官方 Snell v6 二进制文件自建 Docker 镜像，无需任何第三方镜像，通过运行两个独立实例，分别提供强制 IPv4 出口和强制 IPv6 出口的代理服务。
 
 ## 项目架构
 
@@ -37,18 +37,13 @@ SNELL_PSK='你的密码' bash <(curl -fsSL https://raw.githubusercontent.com/lin
 
 ## 以后修改密码或端口
 
-不要修改 GitHub 上的代码。直接编辑服务器上的配置文件：
+不要修改 GitHub 上的代码。直接在服务器上执行以下命令修改密码（会提示你输入新密码）：
 
 ```bash
-nano /root/snell-config-v4/snell-server.conf
-nano /root/snell-config-v6/snell-server.conf
+read -p "请输入新密码: " NEW_PSK && sed -i "s|^psk = .*|psk = ${NEW_PSK}|" /root/snell-config-v4/snell-server.conf /root/snell-config-v6/snell-server.conf && cd /root && docker compose up -d && echo ">>> 密码已修改并重启！"
 ```
 
-修改 `psk` 或 `listen` 中的端口，保存后执行：
-
-```bash
-cd /root && docker compose up -d
-```
+**注意**：修改完成后，需同步修改 Surge 客户端里两个节点的密码。
 
 ## Surge 客户端配置
 
