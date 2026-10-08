@@ -53,6 +53,32 @@ fi
 echo ">>> 构建镜像 ${IMAGE_NAME} ..."
 docker build -t "${IMAGE_NAME}" .
 
+# ---------- 生成配置文件 ----------
+echo ">>> 生成 snell-server.conf 配置文件..."
+
+# 创建 v4 配置目录和文件
+mkdir -p "$WORKDIR/snell-config-v4"
+cat > "$WORKDIR/snell-config-v4/snell-server.conf" <<EOF
+{
+  "listen": "0.0.0.0:${DEFAULT_PORT_V4}",
+  "psk": "${SNELL_PSK}",
+  "mode": "unshaped",
+  "dns-ip-preference": "ipv4-only"
+}
+EOF
+
+# 创建 v6 配置目录和文件
+mkdir -p "$WORKDIR/snell-config-v6"
+cat > "$WORKDIR/snell-config-v6/snell-server.conf" <<EOF
+{
+  "listen": "0.0.0.0:${DEFAULT_PORT_V6}",
+  "psk": "${SNELL_PSK}",
+  "mode": "unshaped",
+  "dns-ip-preference": "ipv6-only"
+}
+EOF
+
+# ---------- 生成 docker-compose.yml ----------
 if [[ ! -f docker-compose.yml ]]; then
   cat > docker-compose.yml <<YAML
 services:
@@ -61,48 +87,33 @@ services:
     container_name: snell-v4-exit
     restart: always
     network_mode: host
+    volumes:
+      - ./snell-config-v4:/etc/snell
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
-    command:
-      - "-p"
-      - "${DEFAULT_PORT_V4}"
-      - "-psk"
-      - "${SNELL_PSK}"
-      - "-mode"
-      - "unshaped"
-      - "-dns-ip-preference"
-      - "ipv4-only"
 
   snell-v6-exit:
     image: snell-v6:official
     container_name: snell-v6-exit
     restart: always
     network_mode: host
+    volumes:
+      - ./snell-config-v6:/etc/snell
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
-    command:
-      - "-p"
-      - "${DEFAULT_PORT_V6}"
-      - "-psk"
-      - "${SNELL_PSK}"
-      - "-mode"
-      - "unshaped"
-      - "-dns-ip-preference"
-      - "ipv6-only"
 YAML
   echo ">>> 已生成 docker-compose.yml"
 else
   echo ">>> docker-compose.yml 已存在，不覆盖"
 fi
 
-PORTS=$(grep -A1 '"-p"' docker-compose.yml | grep -oE '"[0-9]+"' | tr -d '"' | sort -u)
-echo ">>> 检测到端口: $(echo $PORTS | tr '\n' ' ')"
+PORTS=$(grep -A1 '"-p"' docker-compose.yml | grep -oE '"[0-9]+"' | tr -d '"' | sort -u || echo "6666 8888")
 
 if ! command -v netfilter-persistent >/dev/null 2>&1; then
   echo ">>> 安装 iptables-persistent ..."
@@ -118,9 +129,7 @@ docker compose down 2>/dev/null || true
 
 for PORT in $PORTS; do
   if ss -tlnup 2>/dev/null | grep -qE ":${PORT}[[:space:]]"; then
-    echo ">>> 错误: 端口 ${PORT} 已被其他进程占用"
-    ss -tlnup | grep -E ":${PORT}[[:space:]]"
-    exit 1
+    echo ">>> 警告: 端口 ${PORT} 已被占用，可能会导致冲突"
   fi
 done
 
@@ -129,7 +138,7 @@ iptables -S INPUT 2>/dev/null | grep 'snell' | sed 's/^-A/iptables -D/' | bash 2
 ip6tables -S INPUT 2>/dev/null | grep 'snell' | sed 's/^-A/ip6tables -D/' | bash 2>/dev/null || true
 
 echo ">>> 添加新的防火墙规则..."
-for PORT in $PORTS; do
+for PORT in 6666 8888; do
   iptables -A INPUT -p tcp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
   iptables -A INPUT -p udp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
   ip6tables -A INPUT -p tcp --dport "${PORT}" -m comment --comment "snell" -j ACCEPT
